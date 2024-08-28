@@ -1,7 +1,6 @@
 const Task = require("../models/taskModel");
 const User = require("../models/userModel");
 const Achievement = require("../models/achievementModel");
-
 const catchAsync = require("../utils/catchAsync");
 
 exports.getAllUserTasks = catchAsync(async (req, res) => {
@@ -102,7 +101,7 @@ exports.deleteTask = catchAsync(async (req, res) => {
 
 exports.completeTask = catchAsync(async (req, res, next) => {
   const { id } = req.body;
-  const currentDate = new Date();
+  const currentDate = new Date().setHours(0, 0, 0, 0);
   const task = await Task.findById(id);
 
   if (!task) {
@@ -112,7 +111,29 @@ exports.completeTask = catchAsync(async (req, res, next) => {
     });
   }
 
-  task.completedDates.push({ date: currentDate, isCompleted: true });
+  const isScheduledForToday = task.habitDates.some(
+    date => new Date(date).setHours(0, 0, 0, 0) === currentDate
+  );
+
+  if (!isScheduledForToday) {
+    return res.status(400).json({
+      status: "fail",
+      message: "This task is not scheduled for today."
+    });
+  }
+
+  const alreadyCompletedToday = task.completedDates.some(
+    completed => new Date(completed.date).setHours(0, 0, 0, 0) === currentDate
+  );
+
+  if (alreadyCompletedToday) {
+    return res.status(400).json({
+      status: "fail",
+      message: "This task has already been completed today."
+    });
+  }
+
+  task.completedDates.push({ date: new Date(), isCompleted: true });
   await task.save();
 
   const achievements = await Achievement.findOne({ user: req.user.id });
